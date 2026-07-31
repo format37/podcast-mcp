@@ -221,8 +221,8 @@ speech rate for estimates, and sets the right duration sanity window.
 
 ## Worked example
 
-In the repo's `examples/` directory (when installing this skill outside the
-checkout, point the paths below at your clone):
+In `/path/to/podcast-mcp/examples/` (the repo's `examples/` directory —
+`install.sh` fills in the real clone path):
 
 * `roc_curves_en.json` — a full 3.5-minute English episode. **Read this before
   writing your first script.** Note the turn lengths, the two
