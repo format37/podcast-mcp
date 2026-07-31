@@ -10,7 +10,11 @@ import pytest
 import console
 import settings as settings_mod
 
-TOKEN = "123456789:AAHrealSecretTokenValue0123456789xyz"
+# Deliberately NOT shaped like a real Telegram token: the real format is
+# <9-10 digits>:<35 chars>, which trips GitHub secret scanning even on an
+# obviously fake value. Keep the "digits:secret" shape (mask_token parses it)
+# but keep the secret half short and self-describing.
+TOKEN = "123456789:TEST-FIXTURE-not-a-real-token"
 
 
 @pytest.fixture(autouse=True)
@@ -106,8 +110,8 @@ def test_auto_send_is_coerced_to_a_bool():
 def test_mask_hides_the_secret_half_but_keeps_the_bot_id():
     masked = settings_mod.mask_token(TOKEN)
     assert masked.startswith("123456789:")
-    assert "AAHrealSecretTokenValue" not in masked
-    assert masked.endswith("9xyz")
+    assert "TEST-FIXTURE" not in masked
+    assert masked.endswith("oken")
 
 
 def test_mask_of_an_empty_token_is_empty():
@@ -143,7 +147,7 @@ def test_settings_page_never_renders_the_raw_token():
     settings_mod.save(telegram_bot_token=TOKEN, telegram_chat_id="-100123")
     html = console.render_settings(settings_mod.public_view(), base="/podcast/console")
     assert TOKEN not in html
-    assert "AAHrealSecretTokenValue" not in html
+    assert "TEST-FIXTURE" not in html
     # The field is pre-filled with the sentinel so an unchanged save is a no-op.
     assert settings_mod.MASK_SENTINEL in html
 

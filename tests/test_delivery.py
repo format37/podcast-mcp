@@ -10,7 +10,11 @@ import console
 import delivery
 import settings as settings_mod
 
-TOKEN = "123456789:AAHsecret0123456789abcdefghijklmno"
+# Deliberately NOT shaped like a real Telegram token: the real format is
+# <9-10 digits>:<35 chars>, which trips GitHub secret scanning even on an
+# obviously fake value. Keep the "digits:secret" shape (mask_token parses it)
+# but keep the secret half short and self-describing.
+TOKEN = "123456789:TEST-FIXTURE-not-a-real-token"
 
 
 class FakeResponse:
