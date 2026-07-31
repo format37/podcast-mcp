@@ -22,9 +22,11 @@ import requests
 
 import chunker
 import config
+import delivery
 import episodes
 import mixing
 import script_model
+import settings
 import tts
 from chunker import Block
 from script_model import Turn
@@ -206,6 +208,48 @@ def render_block_to_file(
     )
 
 
+def deliver(episode_id: str) -> dict[str, Any]:
+    """Send a finished episode to Telegram and record the outcome on the episode.
+
+    Used by both the auto-send hook and the console's manual send button, so
+    there is one delivery path and one shape of ``meta['delivery']``.
+    """
+    meta = episodes.load(episode_id)
+    if meta.get("state") != "done":
+        raise delivery.DeliveryError(
+            f"episode is {meta.get('state')}, not done — there is nothing to send yet."
+        )
+    try:
+        record = delivery.send_episode(meta, episodes.audio_path(episode_id))
+    except delivery.DeliveryError as exc:
+        episodes.update(episode_id, delivery=delivery.failure_record(str(exc)))
+        raise
+    episodes.update(episode_id, delivery=record)
+    return record
+
+
+def _auto_deliver(episode_id: str) -> None:
+    """Deliver if auto-send is on. Never raises: the render already succeeded.
+
+    A failure here is a notification problem, not a render problem — the audio
+    is on disk and downloadable either way — so it is recorded on the episode
+    and surfaced in the console rather than turned into a failed job.
+    """
+    try:
+        if not settings.load().get("telegram_auto_send"):
+            return
+        ready, reason = settings.delivery_ready()
+        if not ready:
+            logger.warning("auto-send is on but %s; skipping episode %s", reason, episode_id)
+            episodes.update(episode_id, delivery=delivery.skipped_record(reason))
+            return
+        deliver(episode_id)
+    except delivery.DeliveryError as exc:
+        logger.warning("auto-send failed for %s: %s", episode_id, exc)
+    except Exception:  # noqa: BLE001 — a delivery bug must not undo a paid render
+        logger.exception("unexpected error while auto-sending %s", episode_id)
+
+
 def render(
     episode_id: str,
     prepared: Plan,
@@ -285,6 +329,7 @@ def render(
         # result section records the finished episode rather than the last
         # step of the pipeline that produced it.
         episodes.write_sidecars(episode_id)
+        _auto_deliver(episode_id)
         logger.info(
             "episode %s rendered: %s, %s MB, %s chars/s",
             episode_id, episode["duration_human"], episode["size_mb"],

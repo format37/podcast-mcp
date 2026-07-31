@@ -48,7 +48,9 @@ for _candidate in (
 import brief as brief_mod  # noqa: E402
 import config  # noqa: E402  — must import after load_dotenv
 import console  # noqa: E402
+import delivery  # noqa: E402
 import episodes  # noqa: E402
+import settings  # noqa: E402
 import mixing  # noqa: E402
 import pipeline  # noqa: E402
 import script_model  # noqa: E402
@@ -403,7 +405,21 @@ def podcast_status(job_id: str) -> dict:
     if meta.get("state") == "done":
         view = _episode_view(meta)
         reply["episode"] = view
-        reply["deliver"] = _delivery_hint(view)
+        record = meta.get("delivery") or {}
+        if record.get("state") == "sent":
+            # Already delivered by the server's own auto-send — telling the
+            # agent to send it again would double-post it to the chat.
+            reply["telegram"] = {
+                "state": "sent", "at": record.get("at"), "chat": record.get("chat")
+            }
+            reply["deliver"] = (
+                "Already delivered to Telegram automatically by the server. "
+                "Do not send it again unless the user asks."
+            )
+        else:
+            if record:
+                reply["telegram"] = {"state": record.get("state"), "error": record.get("error")}
+            reply["deliver"] = _delivery_hint(view)
     return reply
 
 
@@ -621,8 +637,57 @@ async def console_episode(request):
     directory = episodes.episode_dir(episode_id)
     available = {name for name in _SERVEABLE if (directory / name).is_file()}
     return HTMLResponse(
-        console.render_episode(meta, script, record, base=base, available=available)
+        console.render_episode(
+            meta, script, record, base=base, available=available,
+            telegram_ready=settings.delivery_ready()[0],
+        )
     )
+
+
+async def console_settings(request):
+    """View or update the Telegram delivery settings."""
+    if _console_denied(request):
+        return JSONResponse({"detail": "Not found"}, status_code=404)
+    base = _console_base(request)
+    saved = tested = error = ""
+
+    if request.method == "POST":
+        form = await request.form()
+        settings.save(
+            telegram_bot_token=str(form.get("telegram_bot_token") or ""),
+            telegram_chat_id=str(form.get("telegram_chat_id") or ""),
+            # An unchecked checkbox is simply absent from the form body.
+            telegram_auto_send=bool(form.get("telegram_auto_send")),
+        )
+        saved = True
+        if str(form.get("action")) == "test":
+            try:
+                result = delivery.check()
+                tested = result["detail"]
+            except delivery.DeliveryError as exc:
+                error = str(exc)
+        return HTMLResponse(
+            console.render_settings(
+                settings.public_view(), base=base, saved=saved, tested=tested, error=error
+            )
+        )
+
+    return HTMLResponse(console.render_settings(settings.public_view(), base=base))
+
+
+async def console_send(request):
+    """Manually deliver one finished episode to Telegram."""
+    if _console_denied(request):
+        return JSONResponse({"detail": "Not found"}, status_code=404)
+    base = _console_base(request)
+    episode_id = request.path_params["episode_id"]
+    try:
+        pipeline.deliver(episode_id)
+    except (episodes.EpisodeError, delivery.DeliveryError) as exc:
+        logger.warning("manual send failed for %s: %s", episode_id, exc)
+    # Either way the outcome is recorded on the episode, so redirect back to it
+    # and let the page show what happened.
+    return RedirectResponse(f"{base}/{episode_id}", status_code=303)
 
 
 async def console_delete_selected(request):
@@ -778,8 +843,10 @@ for _console_path, _prefix in _console_shapes:
         # Before the {episode_id} routes for the same reason as assets above:
         # "delete-selected" would otherwise be matched as an episode id.
         Route(f"{_console_path}/delete-selected", console_delete_selected, methods=["POST"]),
+        Route(f"{_console_path}/settings", console_settings, methods=["GET", "POST"]),
         Route(f"{_console_path}/{{episode_id}}", console_episode, methods=["GET"]),
         Route(f"{_console_path}/{{episode_id}}/delete", console_delete, methods=["POST"]),
+        Route(f"{_console_path}/{{episode_id}}/send", console_send, methods=["POST"]),
         # Download links on an episode page resolve relative to the console
         # base, so the same files are reachable under the console prefix too.
         Route(f"{_console_path}/{{episode_id}}/{{filename}}", serve_episode, methods=["GET"]),

@@ -1,6 +1,6 @@
 ---
 name: podcast
-description: Write and render a NotebookLM-style two-host podcast episode from any topic, then deliver it to Telegram with an inline player. Use whenever the user wants a podcast, an audio episode, an audio explainer, a "two hosts discussing X" piece, an audio digest of a paper/repo/article, or asks to "turn this into a podcast" / "сделай подкаст". Claude researches the topic and WRITES THE DIALOGUE SCRIPT itself; the podcast MCP server only renders the audio (ElevenLabs Eleven v3 text-to-dialogue), mixes it and stores it. Delivery is a telegram-skill call at the end.
+description: Write and render a NotebookLM-style two-host podcast episode from any topic, then deliver it to Telegram with an inline player. Use whenever the user wants a podcast, an audio episode, an audio explainer, a "two hosts discussing X" piece, an audio digest of a paper/repo/article, or asks to "turn this into a podcast" / "сделай подкаст". Claude researches the topic and WRITES THE DIALOGUE SCRIPT itself; the podcast MCP server only renders the audio (ElevenLabs Eleven v3 text-to-dialogue), mixes it and stores it. Delivery is a telegram-skill call at the end, unless the server's own Telegram auto-send is enabled, in which case it already delivered it.
 ---
 
 # podcast
@@ -32,8 +32,11 @@ and it is the whole design:
 5. **Poll**: `podcast_status(job_id)` until `done`. **Rendering runs at about
    1x realtime** — a 15-minute episode takes ~15 minutes. Do something else and
    check back; do not sit in a tight polling loop.
-6. **Deliver** with the telegram skill (the `deliver` field of the done status
-   spells out the exact command):
+6. **Deliver** — but check `podcast_status` first. If the server has Telegram
+   auto-send enabled it has *already* delivered the episode, and the status
+   says so (`telegram.state == "sent"`). Sending again double-posts it.
+   Otherwise use the telegram skill; the `deliver` field of the done status
+   spells out the exact command:
 
    ```bash
    PY=~/.claude/skills/telegram/.venv/bin/python
@@ -75,6 +78,10 @@ brief, generation config, transcript and per-block render metadata, and offers
 Locally: **http://localhost:8021/podcast/console**. `podcast_list` returns the
 public URL under `console` once the server is deployed. Everything there is also
 reachable through the tools, so you never need the browser to read past work.
+
+Its **settings** page configures a Telegram bot token + chat and can switch on
+automatic delivery of every new episode. When that is on, step 6 above is already
+done for you — check `podcast_status` rather than sending a duplicate.
 
 ## Script format — the contract
 

@@ -78,6 +78,29 @@ container, no API in between, so it cannot drift from the data it displays.
 JavaScript is limited to the theme toggle and selection niceties, both
 progressive enhancement.
 
+### Telegram delivery
+
+The console's **settings** page takes a bot token and chat id and can turn on
+**automatic delivery**: every finished episode is uploaded to the chat with
+`sendAudio` — an inline player with seek, speed controls, title/performer and
+cover art — as soon as it renders. Each episode page shows the delivery status
+and can send (or re-send) on demand.
+
+The file is uploaded rather than passed as a URL: Telegram's send-by-URL path
+caps at 20 MB and needs a publicly reachable episode route, while uploading
+works to 50 MB and needs no public origin, so a localhost deployment delivers
+exactly like the VPS one.
+
+Delivery never fails a render — an episode that exists but did not reach
+Telegram is a notification problem, and the audio is on disk either way. The
+outcome is recorded on the episode and reported by `podcast_status`, which also
+tells the agent *not* to send it again when the server already did.
+
+The bot token is stored chmod 600 and never rendered back to the browser, only
+masked. Setting `TELEGRAM_BOT_TOKEN` in the environment instead keeps it off
+disk entirely. Note that with delivery configured, the console URL can send
+messages as your bot — it is a capability URL, so treat it accordingly.
+
 With `DOWNLOAD_TOKEN` set the console moves to `/podcast/<DOWNLOAD_TOKEN>/console`
 and the unprefixed path 404s. That is deliberately a *different* secret from
 `MCP_TOKENS`: a browser following a link and Telegram fetching an mp3 both
@@ -172,6 +195,8 @@ python -m pytest      # 107 tests: chunker, validation, rates, request.yaml, con
 | `backend/pipeline.py` | the state machine shared by CLI and server |
 | `backend/episodes.py` | episode/job store |
 | `backend/brief.py` | `request.yaml` + transcript generation |
+| `backend/settings.py` | runtime settings (Telegram), stored not env-frozen |
+| `backend/delivery.py` | Telegram `sendAudio` upload |
 | `backend/console.py` | the web console |
 | `backend/main.py` | FastMCP server, tools, routes, token auth |
 | `backend/render.py` | standalone CLI |

@@ -23,6 +23,7 @@ from typing import Any
 import brief as brief_mod
 import config
 import episodes
+from settings import MASK_SENTINEL
 
 logger = logging.getLogger(__name__)
 
@@ -187,6 +188,7 @@ def _shell(*, title: str, base: str, body: str, read: bool = False, select: bool
 <header class="mast">
   <a class="brand" href="{base}">{esc(config.SHOW_TITLE)} <span class="dim">// console</span></a>
   <nav class="mast-right">
+    <a class="plink" href="{base}/settings">SETTINGS</a>
     <button class="toggle" id="theme-toggle" aria-label="Switch theme">&#9728; DAY</button>
   </nav>
 </header>
@@ -439,6 +441,7 @@ def render_episode(
     *,
     base: str,
     available: set[str],
+    telegram_ready: bool = False,
 ) -> str:
     episode = meta.get("episode") or {}
     state = str(meta.get("state") or "")
@@ -489,6 +492,11 @@ def render_episode(
     if links:
         parts.append(f'<div class="dl">{links}</div>')
 
+    if state == "done":
+        parts.append(
+            _render_delivery(meta, base, episode_id, can_send=telegram_ready)
+        )
+
     parts.append("<h2>Request</h2>")
     parts.append(_render_brief(record))
     parts.append(_render_config(record))
@@ -516,6 +524,113 @@ def render_episode(
         body="".join(parts),
         read=True,
     )
+
+
+DELIVERY_LABEL = {
+    "sent": "SENT", "failed": "FAILED", "skipped": "SKIPPED", "sending": "SENDING",
+}
+
+
+def _render_delivery(meta: dict[str, Any], base: str, episode_id: str, *, can_send: bool) -> str:
+    """Telegram delivery status plus a manual send button."""
+    record = meta.get("delivery") or {}
+    state = str(record.get("state") or "")
+    rows = []
+    if state:
+        css = {"sent": "ok", "failed": "bad", "skipped": "busy"}.get(state, "busy")
+        detail = record.get("chat") or record.get("error") or ""
+        rows.append(
+            f'<dt>status</dt><dd><span class="dstate d-{css}">'
+            f'{esc(DELIVERY_LABEL.get(state, state.upper()))}</span>'
+            + (f" &#183; {esc(detail)}" if detail else "")
+            + "</dd>"
+        )
+        if record.get("at"):
+            rows.append(f'<dt>at</dt><dd>{esc(record["at"])}</dd>')
+    else:
+        rows.append('<dt>status</dt><dd class="prose">Not sent to Telegram.</dd>')
+
+    button = ""
+    if can_send:
+        label = "SEND AGAIN" if state == "sent" else "SEND TO TELEGRAM"
+        button = (
+            f'<form method="post" action="{base}/{esc(episode_id)}/send" class="inline-form">'
+            f'<button class="btn" type="submit">{label}</button></form>'
+        )
+    else:
+        button = (
+            '<p class="note">Configure a bot token and chat id in '
+            f'<a href="{base}/settings">settings</a> to send episodes.</p>'
+        )
+    return f'<h2>Telegram</h2><dl class="dl-grid">{"".join(rows)}</dl>{button}'
+
+
+def render_settings(
+    view: dict[str, Any],
+    *,
+    base: str,
+    saved: bool = False,
+    tested: str = "",
+    error: str = "",
+) -> str:
+    """The Telegram delivery settings form."""
+    mask = view.get("telegram_bot_token_mask") or ""
+    token_value = esc(MASK_SENTINEL) if view.get("telegram_bot_token_set") else ""
+    token_hint = (
+        f"Currently <code>{esc(mask)}</code>. Leave as-is to keep it; type a new "
+        "token to replace it."
+        if view.get("telegram_bot_token_set")
+        else "From @BotFather, e.g. <code>123456789:AA…</code>."
+    )
+    notes = []
+    if saved:
+        notes.append('<p class="note notice">Settings saved.</p>')
+    if tested:
+        notes.append(f'<p class="note notice">{esc(tested)}</p>')
+    if error:
+        notes.append(f'<p class="note notice notice-bad">{esc(error)}</p>')
+
+    auto_on = " checked" if view.get("telegram_auto_send") else ""
+
+    body = f"""
+<p style="margin:22px 0 0"><a class="back" href="{base}">&#8592; ALL EPISODES</a></p>
+<h1 class="title">Settings</h1>
+<div class="meta">TELEGRAM DELIVERY</div>
+{"".join(notes)}
+<form method="post" action="{base}/settings" class="settings">
+  <div class="field">
+    <label for="tok">Bot token</label>
+    <input type="password" id="tok" name="telegram_bot_token" value="{token_value}"
+           autocomplete="off" spellcheck="false" placeholder="123456789:AA…">
+    <p class="hint">{token_hint}</p>
+  </div>
+  <div class="field">
+    <label for="chat">Chat id</label>
+    <input type="text" id="chat" name="telegram_chat_id"
+           value="{esc(view.get("telegram_chat_id") or "")}"
+           autocomplete="off" spellcheck="false" placeholder="-1001234567890">
+    <p class="hint">A negative id is a group or channel. The bot must already be a
+       member (and, for a channel, an admin).</p>
+  </div>
+  <div class="field field-check">
+    <label class="pickall" for="auto">
+      <input type="checkbox" class="pick-all" id="auto" name="telegram_auto_send"{auto_on}>
+      <span>SEND EVERY NEW EPISODE AUTOMATICALLY</span>
+    </label>
+    <p class="hint">When on, a finished episode is uploaded to the chat as soon as it
+       renders. A delivery failure is recorded on the episode and never fails the
+       render.</p>
+  </div>
+  <div class="actions">
+    <button class="btn" type="submit" name="action" value="save">SAVE</button>
+    <button class="btn" type="submit" name="action" value="test">SAVE &amp; SEND TEST</button>
+  </div>
+</form>
+<p class="note">The token is stored on the server (chmod 600) and never shown again.
+   Setting <code>TELEGRAM_BOT_TOKEN</code> in the environment instead keeps it off
+   disk entirely.</p>
+"""
+    return _shell(title=f"Settings // {config.SHOW_TITLE}", base=base, body=body, read=True)
 
 
 def render_error(message: str, *, base: str, status: int = 404) -> str:

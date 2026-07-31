@@ -276,11 +276,51 @@ a:focus-visible, button:focus-visible, summary:focus-visible {
 }
 #bulk-delete:disabled:hover { color: var(--text-faint); border-color: var(--rule-soft); }
 
-/* Result of a bulk delete, shown once after the redirect. */
+/* Result of a bulk delete or a settings save, shown once after the redirect. */
 .notice {
   border-left: 2px solid var(--rule); padding-left: 12px;
   margin-top: 18px; color: var(--text-secondary);
 }
+.notice-bad { border-left-color: var(--bad); }
+
+/* ── Settings form ───────────────────────────────────────────────────────── */
+.settings { margin-top: 26px; }
+.field { margin-bottom: 26px; }
+.field > label {
+  display: block; margin-bottom: 8px;
+  font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase;
+  color: var(--text-muted);
+}
+.field input[type='text'], .field input[type='password'] {
+  width: 100%; padding: 9px 11px;
+  font-family: var(--font-mono); font-size: 13px;
+  color: var(--text-primary); background: var(--panel);
+  border: 1px solid var(--rule); border-radius: 2px;
+  transition: border-color 0.2s;
+}
+.field input:focus {
+  outline: none; border-color: var(--text-faint);
+}
+.field input::placeholder { color: var(--text-faint); }
+.hint {
+  margin: 7px 0 0; font-family: var(--font-sans); font-size: 12.5px;
+  line-height: 1.55; color: var(--text-muted);
+}
+.field-check .pickall { letter-spacing: 0.16em; }
+.field-check .hint { margin-top: 9px; padding-left: 22px; }
+code {
+  font-family: var(--font-mono); font-size: 12px;
+  background: var(--panel); border: 1px solid var(--rule-soft);
+  border-radius: 2px; padding: 1px 5px;
+}
+.actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 30px; }
+.inline-form { display: inline-block; margin-top: 14px; }
+
+/* ── Delivery state ──────────────────────────────────────────────────────── */
+.dstate { font-weight: 500; letter-spacing: 0.14em; font-size: 11px; }
+.d-ok { color: var(--ok); }
+.d-bad { color: var(--bad); }
+.d-busy { color: var(--busy); }
 
 /* ── State ───────────────────────────────────────────────────────────────── */
 .state { font-weight: 500; }
