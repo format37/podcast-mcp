@@ -32,16 +32,21 @@ _MONTHS = ("JAN", "FEB", "MAR", "APR", "MAY", "JUN",
 
 
 def _asset_version() -> str:
-    """Cache-buster derived from the stylesheet's mtime.
+    """Cache-buster derived from the newest mtime among the served assets.
 
-    The CSS is served with a week-long cache (it is requested on every page
-    load and never changes between deploys), which without this would mean a
-    style fix does not reach a browser for seven days — and, worse, that new
-    HTML renders against stale CSS. The mtime changes on every deploy, so the
-    URL does too.
+    Assets are served with a week-long cache (requested on every page load,
+    unchanged between deploys), which without this would mean a style or icon
+    fix does not reach a browser for seven days — and, worse, that new HTML
+    renders against stale CSS. Covering the whole directory rather than just
+    the stylesheet means changing only the favicon still bumps the version.
+    Fonts are excluded: they are content-stable and would only add churn.
     """
+    static = Path(__file__).resolve().parent / "static"
     try:
-        return str(int((Path(__file__).resolve().parent / "static" / "console.css").stat().st_mtime))
+        newest = max(
+            (p.stat().st_mtime for p in static.iterdir() if p.is_file()), default=0.0
+        )
+        return str(int(newest))
     except OSError:
         return "0"
 
@@ -179,6 +184,9 @@ def _shell(*, title: str, base: str, body: str, read: bool = False, select: bool
 <meta name="robots" content="noindex, nofollow">
 <meta name="color-scheme" content="light dark">
 <meta name="theme-color" content="#eceae5">
+<link rel="icon" type="image/svg+xml" href="{base}/assets/favicon.svg?v={ASSET_V}">
+<link rel="alternate icon" type="image/png" href="{base}/assets/favicon-32.png?v={ASSET_V}">
+<link rel="apple-touch-icon" href="{base}/assets/apple-touch-icon.png?v={ASSET_V}">
 <link rel="preload" href="{base}/assets/fonts/jetbrains-mono-400.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="{base}/assets/fonts/inter-400.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="{base}/assets/console.css?v={ASSET_V}">

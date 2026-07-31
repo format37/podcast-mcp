@@ -329,3 +329,47 @@ def test_base_prefix_is_used_for_every_link():
     assert "/podcast/SECRET/console/assets/console.css" in html
     assert "/podcast/SECRET/console/20260731-abcdef123456/episode.mp3" in html
     assert 'href="/podcast/console"' not in html
+
+
+# ── favicon ─────────────────────────────────────────────────────────────────
+
+
+def test_pages_declare_the_favicon():
+    for html in (page(), console.render_index([], base="/podcast/console")):
+        assert 'rel="icon" type="image/svg+xml"' in html
+        assert "favicon.svg" in html
+
+
+def test_favicon_links_are_cache_busted():
+    html = console.render_index([], base="/podcast/console")
+    assert f"favicon.svg?v={console.ASSET_V}" in html
+
+
+def test_favicon_links_keep_the_token_prefix():
+    html = console.render_index([], base="/podcast/SECRET/console")
+    assert "/podcast/SECRET/console/assets/favicon.svg" in html
+
+
+def test_png_and_apple_touch_fallbacks_are_offered():
+    html = console.render_index([], base="/podcast/console")
+    assert "favicon-32.png" in html
+    assert 'rel="apple-touch-icon"' in html
+
+
+def test_favicon_files_exist_and_are_small():
+    import pathlib
+    static = pathlib.Path(__file__).resolve().parent.parent / "backend" / "static"
+    for name, ceiling in (("favicon.svg", 4_000), ("favicon-32.png", 4_000),
+                          ("apple-touch-icon.png", 20_000)):
+        path = static / name
+        assert path.is_file(), f"{name} is missing"
+        assert path.stat().st_size < ceiling, f"{name} is unexpectedly large"
+
+
+def test_favicon_svg_adapts_to_the_browser_theme():
+    """A fixed fill disappears against one of the two tab-strip colours."""
+    import pathlib
+    svg = (pathlib.Path(__file__).resolve().parent.parent
+           / "backend" / "static" / "favicon.svg").read_text(encoding="utf-8")
+    assert "prefers-color-scheme: dark" in svg
+    assert "viewBox" in svg
