@@ -1,0 +1,19 @@
+# MCP server + HTTP transport.
+# Pinned below 2.0 deliberately: mcp 2.x drops `mcp.server.fastmcp`, and this
+# server shares its Starlette assembly, token middleware and deployment shape
+# with the kindle MCP next door (mcp 1.29). Migrate both together or neither.
+mcp>=1.29,<2
+uvicorn>=0.32.1
+starlette>=0.41.3
+anyio
+
+# ElevenLabs text-to-dialogue is a plain REST call — no vendor SDK needed.
+requests>=2.32.0
+
+# request.yaml: the reproducible generation record shown in the console and
+# handed back to agents. Hand-rolling YAML quoting for agent-authored text
+# (quotes, colons, CJK, newlines) is exactly the wrong place to save a dependency.
+PyYAML>=6.0
+
+# Environment
+python-dotenv>=1.0.0

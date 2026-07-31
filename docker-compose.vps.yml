@@ -1,0 +1,68 @@
+# podcast MCP — VPS deployment (scriptlab, alongside the kindle MCP).
+#
+# Caddy terminates TLS and reverse-proxies to this container over the external
+# `mcp-shared` network, so NO host port is published — `expose` only. Auth is
+# mandatory here (MCP_REQUIRE_AUTH=true + MCP_TOKENS from .env); URL tokens are
+# allowed because a claude.ai connector can only carry the token in the URL.
+#
+# DOWNLOAD_TOKEN is a SECOND, separate secret guarding
+# /podcast/<DOWNLOAD_TOKEN>/episodes/<id>/episode.mp3. It exists because
+# Telegram fetches an episode URL itself and cannot send an Authorization
+# header — so that one route has to be reachable without the MCP token, and
+# giving it its own secret means handing a URL to Telegram never leaks the
+# credential that can drive the server.
+#
+# Deploy:
+#   docker network create mcp-shared          # once, shared with the other MCPs
+#   docker compose -f docker-compose.vps.yml up -d --build
+#
+# Caddyfile entry (matches the kindle block):
+#   handle /podcast/* {
+#       reverse_proxy mcp-podcast:8021
+#   }
+#
+# .env lives on the VPS only (ELEVENLABS_API_KEY, MCP_TOKENS, DOWNLOAD_TOKEN)
+# and is gitignored — see .env.example.
+services:
+  mcp-podcast:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: mcp-podcast
+    env_file: .env
+    environment:
+      - PORT=8021
+      - TZ=UTC
+      - MCP_NAME=podcast
+      - OUTPUT_DIR=/app/data/episodes
+      - MCP_REQUIRE_AUTH=true
+      - MCP_ALLOW_URL_TOKENS=true
+      - MCP_ALLOWED_HOSTS=scriptlab.duckdns.org
+      - MCP_PUBLIC_BASE_URL=https://scriptlab.duckdns.org
+      - LOG_LEVEL=info
+      - BLOCK_CHAR_LIMIT=1800
+      - MIN_BLOCK_CHARS=600
+      - MAX_SCRIPT_CHARS=30000
+      - CONCAT_MODE=crossfade
+      - CROSSFADE_MS=60
+      # Blocks are the only way to diagnose a bad seam after the fact, and they
+      # roughly double an episode's footprint. Episodes are pruned at 90 days.
+      - KEEP_BLOCKS=true
+      - EPISODE_MAX_AGE_DAYS=90
+    expose:
+      - "8021"
+    volumes:
+      - ./data:/app/data
+    networks:
+      - default
+      - mcp-shared
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    restart: unless-stopped
+
+networks:
+  mcp-shared:
+    external: true

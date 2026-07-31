@@ -1,0 +1,46 @@
+# podcast MCP — LOCAL deployment (dev machine).
+#
+# One codebase, two deployments, same as the kindle MCP next door:
+#   * this file  — 127.0.0.1:8021, MCP_TOKENS empty => token auth DISABLED.
+#                  Driven by Claude Code. Episodes land in ./data/episodes on
+#                  the host, so the telegram skill can send them straight off
+#                  disk without any public URL existing.
+#   * docker-compose.vps.yml — behind Caddy on scriptlab, token auth REQUIRED,
+#                  episodes reachable over HTTPS for Telegram's send-by-URL path.
+#
+# ELEVENLABS_API_KEY comes from .env (mounted read-only, never committed).
+#
+# Run:  ./compose.sh     (or: docker compose up -d --build)
+services:
+  mcp-podcast:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: mcp-podcast
+    environment:
+      - PORT=8021
+      - TZ=UTC
+      - MCP_NAME=podcast
+      - MCP_TOKENS=            # empty => token auth disabled (localhost only)
+      - MCP_PUBLIC_BASE_URL=   # empty locally: no public origin to hand out
+      - OUTPUT_DIR=/app/data/episodes
+      # The host side of the ./data bind mount. Delivery is agent-side, so the
+      # paths this server reports must be openable by the telegram skill
+      # running outside the container — not /app/data/... which only exists here.
+      - HOST_OUTPUT_DIR=${PWD}/data/episodes
+      - LOG_LEVEL=info
+      # Rendering knobs. BLOCK_CHAR_LIMIT must stay <= 2000: that is the
+      # documented per-request ceiling for text-to-dialogue, summed across
+      # inputs[].text. 1800 leaves margin for request overhead.
+      - BLOCK_CHAR_LIMIT=1800
+      - MIN_BLOCK_CHARS=600
+      - MAX_SCRIPT_CHARS=30000
+      - CONCAT_MODE=crossfade
+      - CROSSFADE_MS=60
+      - KEEP_BLOCKS=true
+    ports:
+      - "127.0.0.1:8021:8021"
+    volumes:
+      - ./.env:/app/.env:ro
+      - ./data:/app/data
+    restart: unless-stopped

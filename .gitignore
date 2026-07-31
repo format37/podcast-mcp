@@ -1,0 +1,24 @@
+# --- Secrets: never commit ---------------------------------------------------
+# .env holds ELEVENLABS_API_KEY, MCP_TOKENS and DOWNLOAD_TOKEN. It is written
+# directly on each machine; .env.example is the committed template.
+.env
+.env.*
+!.env.example
+
+# --- Generated content -------------------------------------------------------
+# Episodes: mp3s, scripts, and request.yaml files that can contain whatever the
+# agent was asked about. Never public.
+data/*
+!data/.gitkeep
+
+# --- Private planning material -----------------------------------------------
+# The tech spec names real people and internal infrastructure decisions.
+docs/
+*.local.md
+
+# --- Noise -------------------------------------------------------------------
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.claude/
