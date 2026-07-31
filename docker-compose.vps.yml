@@ -12,11 +12,11 @@
 # giving it its own secret means handing a URL to Telegram never leaks the
 # credential that can drive the server.
 #
-# Deploy:
+# Deploy (see README "Deployment"):
 #   docker network create mcp-shared          # once, shared with the other MCPs
 #   docker compose -f docker-compose.vps.yml up -d --build
 #
-# Caddyfile entry (matches the kindle block):
+# Caddyfile entry on the MCP host (matches the kindle block):
 #   handle /podcast/* {
 #       reverse_proxy mcp-podcast:8021
 #   }
@@ -37,8 +37,11 @@ services:
       - OUTPUT_DIR=/app/data/episodes
       - MCP_REQUIRE_AUTH=true
       - MCP_ALLOW_URL_TOKENS=true
-      - MCP_ALLOWED_HOSTS=scriptlab.duckdns.org
-      - MCP_PUBLIC_BASE_URL=https://scriptlab.duckdns.org
+      # Must list every hostname this is served on: FastMCP's DNS-rebinding
+      # protection answers 421 to a Host it does not recognise, and Caddy
+      # forwards the real Host by default.
+      - MCP_ALLOWED_HOSTS=mcp.latentstate.dev
+      - MCP_PUBLIC_BASE_URL=https://mcp.latentstate.dev
       - LOG_LEVEL=info
       - BLOCK_CHAR_LIMIT=1800
       - MIN_BLOCK_CHARS=600
